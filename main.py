@@ -69,28 +69,65 @@ def cadastrar_endereco_viacep(cep: str):
     dados_endereco = resposta.json()
 
     if "erro" in dados_endereco:
-        return {"mensagem": "Erro no cep"}
-    
-    novo_dict = {
-        "cep": dados_endereco.get("cep"),
-        "endereco": dados_endereco.get("logradouro"),
-        "bairro": dados_endereco.get("bairro"),
-        "cidade": dados_endereco.get("localidade"),
-        "estado": dados_endereco.get("uf"),
-        "regiao": dados_endereco.get("regiao")
-    }
+        return {"mensagem": "Erro no CEP"}
 
-    df = pd.DataFrame([novo_dict])
-    df.to_sql("tb_enderecos", engine, if_exists="append", index=False)
-    
-    return {"mensagem": "Endereço Cadastrado com sucesso"}
+    cep_formatado = dados_endereco.get("cep")
+
+   
+    query_verifica = text("SELECT id, cep FROM tb_enderecos WHERE cep = :cep")
+    with engine.begin() as conn:
+        endereco_existente = conn.execute(query_verifica, {"cep": cep_formatado}).fetchone()
+
+        if endereco_existente:
+            return {"mensagem": "CEP já cadastrado", "cep": cep_formatado}
+
+        query_insert = text("""
+            INSERT INTO tb_enderecos (cep, endereco, bairro, cidade, estado, regiao)
+            VALUES (:cep, :endereco, :bairro, :cidade, :estado, :regiao)
+        """)
+
+        conn.execute(query_insert, {
+            "cep": cep_formatado,
+            "endereco": dados_endereco.get("logradouro"),
+            "bairro": dados_endereco.get("bairro"),
+            "cidade": dados_endereco.get("localidade"),
+            "estado": dados_endereco.get("uf"),
+            "regiao": dados_endereco.get("regiao")
+        })
+
+    return {"mensagem": "Endereço cadastrado com sucesso"}
+
 
 @app.post("/cadastrar-endereco/")
-def cadastrar_endereco(endereco:dict):
-    df = pd.DataFrame([endereco])
-    df.to_sql("tb_enderecos", engine, if_exists="append", index=False)
-    return{"mensagem": "Endereço Cadastrado com sucesso"}
+def cadastrar_endereco(endereco: dict):
+    cep = endereco.get("cep")
 
+    if not cep:
+        return {"mensagem": "O campo CEP é obrigatório"}
+
+    query_verifica = text("SELECT id, cep FROM tb_enderecos WHERE cep = :cep")
+
+    with engine.begin() as conn:
+        endereco_existente = conn.execute(query_verifica, {"cep": cep}).fetchone()
+
+        if endereco_existente:
+            return {"mensagem": "CEP já cadastrado", "cep": cep}
+
+        query_insert = text("""
+            INSERT INTO tb_enderecos (cep, endereco, bairro, cidade, estado, regiao)
+            VALUES (:cep, :endereco, :bairro, :cidade, :estado, :regiao)
+        """)
+
+        conn.execute(query_insert, {
+            "cep": endereco.get("cep"),
+            "endereco": endereco.get("endereco"),
+            "bairro": endereco.get("bairro"),
+            "cidade": endereco.get("cidade"),
+            "estado": endereco.get("estado"),
+            "regiao": endereco.get("regiao")
+        })
+
+    return {"mensagem": "Endereço cadastrado com sucesso"}
 
 
 @app.post("/cadastrar-aluno/", response_model=MsgPost)
